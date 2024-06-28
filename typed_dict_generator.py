@@ -9,10 +9,12 @@ from typing import (
     Tuple,
     NewType,
     Protocol,
+    Union,
 )
 import re
 import itertools
 from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 
 # The KeyPath is the sequence of key accesses required to get to a certain
 # value, represented by `key1.key2.key3` etc.
@@ -23,6 +25,7 @@ KeyPath = NewType("KeyPath", str)
 
 TypeAssignments = Dict["Code", Optional[str]]
 JsonValue = Optional["list[Any] | dict[str, Any] | str | int | float | bool"]
+TemporalTypes = Union[datetime, date, timedelta, time]
 
 
 class Code(Protocol):
@@ -65,13 +68,13 @@ NoneType = type(None)
 
 @dataclass(eq=True, frozen=True)
 class BuiltInCode(Code):
-    type_: int | float | str | bool | NoneType
+    type_: int | float | str | bool | None | TemporalTypes
 
     def to_str(self, assignments: TypeAssignments) -> str:
         # types of built-ins convert to str like this: <class 'classname'>
         # this substitution extracts 'classname' from that
         class_ = re.sub(
-            r"<class '(\w+)'>", lambda match: match.group(1), str(self.type_)
+            r"<class '([\w\.]+)'>", lambda match: match.group(1), str(self.type_)
         )
         return class_ if class_ != "NoneType" else "None"
 
@@ -129,7 +132,7 @@ def _get_type(
     type_assignments: List[Code],
 ) -> Code:
     code: Code
-    if isinstance(value, (type(None), str, int, float, bool)):
+    if isinstance(value, (type(None), str, int, float, bool, datetime, timedelta, date, time)):
         code = BuiltInCode(type(value))  # type: ignore
     elif isinstance(value, list):
         all_types = {_get_type(key, element, type_assignments) for element in value}
